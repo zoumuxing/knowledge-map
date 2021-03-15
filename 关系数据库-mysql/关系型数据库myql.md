@@ -180,4 +180,83 @@ innodb执行事务和行锁表锁，外键, mysisam存储空间大，且支持�
 + 有序数组:适合等值和范围查询，但如果增删改数组，则移动成本太高。适合静态存储引擎。（就是数组插入增删的劣势）
 + B+树：N叉树，查询速度快，且增删改，易以维护
 
-+ 数据按页分块 每页16k
+#### 4.6.2 索引的分类
+
++ 聚簇索引：又称主键索引索引，索引和数据在一起，根据索引可以直接检索整行数据
++ 非聚簇索引：非主键索引，索引和主键索引在一起，如果要查询索引列的整行数据，需要根据主键索引进行回表查询数据
+
+#### 4.6.3 索引的维护
+
+ B+树为了索引的有序性，需要在插入新值或者删除的时候，做必要的维护，从而可能会产生页的分裂和合并
+
++ 插入新值：如果插入的值在之前索引值中间，后面的索引值会往后移动，从而可能会使页空间占满，使后面的页进行分裂，整体空间利用率就会降低
+
++ 删除数据：相邻二个页由于删除数据，利用率就会降低，从而触发页的合并。
+
++ 重建索引：索引因为删除，页分裂，导致数据页有空洞，一般采取重建索引的方式增加一个新的索引，使索引更加紧凑，但如果多次重建主键索引的话就没必要
+
+  
+
+  ```
+  所以为了尽量防止页的分裂，增加空间利用率，一般使用自增主键作为主键索引
+  如果采取非自增主键：
+  一、可能占有字节数很大，例如uuid占有字节数比自增主键大的多，如果存在多个非主键索引，而非主键索引叶子节点存的是主键索引，就会大大增加占有空间
+  二、会发生页的分裂，innodb引擎维护索引是顺序性的，如果插入的主键不连续，会产生页的分裂，增加占有空间
+  ```
+
+
+
+#### 4.6.4 索引的几个重要概念
+
++ 覆盖索引 ：非主键索引，经常回表查询主键索引部分数据，为了减少这样回表次数，可以适当的建立联合索引，进行索引覆盖
++ 最左匹配原则：索引是按照索引定义的字段进行排序的，（例如like查询）因此可以根据业务情况建立联合索引（a,b）时，可以少维护a索引。（谁为最左索引，考虑空间还有频率）
++ 索引下推：如果涉及到联合索引查询，可在联合索引内部进行判断条件，减小数据回表次数（例如name,age，like'张%'，age=10内部索引判断过滤在回表）
+
+## 5.mysql配置优化
+
++ 连接请求的变量
+  1、max_connections：最大连接数
+  2、back_log：超过最大连接数，缓存的连接数量。在超过这个数。不予连接
+  3、wait_timeout ：mysql在没有通信的连接上等待的最大时间数量，可在 /my.cnf 文件中修改这个值
+
+  ```
+  Could not open JDBC Connection for transaction; nested exception is com.mysql.jdbc.exceptions.jdbc4.CommunicationsException: The last packet successfully received from the server was 54,812,410 milliseconds ago. The last packet sent successfully to the server was 54,812,411 milliseconds ago. is longer than the server configured value of ‘wait_timeout’
+  错误原因：应用层与数据库层连接失效，且超过wait_timeout
+  解决方法：
+  数据库层：1.在/my.cnf文件中增大wait_timeout的时间，2.autoReconnect=true对于不活跃的连接进行重连
+  应用层：数据库连接池，最大空闲等待时间设置的时间超过 wait_time，主动失效关闭。
+  ```
+
+  
+
++ 缓冲区变量
+
+  1. key_buffer_size
+  2. query_cache_size（查询缓存简称 QC)
+  3. max_connect_errors：
+  4. sort_buffer_size：
+  5. max_allowed_packet=32M
+  6. join_buffer_size=2M
+  7. thread_cache_size=300  
+
++  配置 Innodb 的几个变量  
+
+  1. nnodb_buffer_pool_size
+  2. innodb_flush_log_at_trx_commit
+  3. innodb_thread_concurrency=0
+  4. innodb_log_buffer_size
+  5. innodb_log_file_size=50M
+  6. innodb_log_files_in_group=3
+  7. read_buffer_size=1M
+  8. read_rnd_buffer_size=16M
+  9. bulk_insert_buffer_size=64M
+  10. binary log  
+
+  
+
+  
+
+
+
+
+
